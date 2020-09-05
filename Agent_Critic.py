@@ -6,16 +6,13 @@ Created on Thu Sep  3 12:02:22 2020
 """
 
 import sys
-sys.path.insert(0, '/Users/stevenydc/Google Drive/Semester 2/elevator_rl')
-sys.path.insert(0, 'C:\\Users\\steve\\Google Drive\\Semester 2\\elevator_rl\\')
-import environment as gym
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import numpy as np
 import logging
 import time
 import os
 import random
-logger = gym.logger.get_my_logger(__name__)
 
 class Actor():
     def __init__(self, obssize, actsize, clip_eps, step_per_train, sess, optimizer, global_step, connections):
@@ -86,25 +83,25 @@ class Actor():
         
         self.Connections    = connections #represents the connection between nodes the agent already owns
         
-        def compute_prob(self, states, legal_actions):
-            """
-            compute prob over actions given states pi(a|s)
-            states: numpy array of size [numsamples, obssize]
-            legal_actions: array of size [numsamples, actsize], 0 if illegal 1 if legal in that state
-            return: numpy array of size [numsamples, actsize]
-            """
-            
-            return self.sess.run(self.prob, feed_dict={self.state:states, self.legal_actions:legal_actions})
+    def compute_prob(self, states, legal_actions):
+        """
+        compute prob over actions given states pi(a|s)
+        states: numpy array of size [numsamples, obssize]
+        legal_actions: array of size [numsamples, actsize], 0 if illegal 1 if legal in that state
+        return: numpy array of size [numsamples, actsize]
+        """
+        
+        return self.sess.run(self.prob, feed_dict={self.state:states, self.legal_actions:legal_actions})
 
-        def train(self, states, actions, Qs, old_prob, legal_actions):
-            """
-            states: numpy array (states)
-            actions: numpy array (actions)
-            Qs: numpy array (Q values)
-            """
-            for i in range(self.step_per_train):
-                self.sess.run(self.train_op, feed_dict={self.state:states, self.actions:actions, self.Q_estimate:Qs, self.old_prob:old_prob, self.legal_actions:legal_actions})
-                
+    def train(self, states, actions, Qs, old_prob, legal_actions):
+        """
+        states: numpy array (states)
+        actions: numpy array (actions)
+        Qs: numpy array (Q values)
+        """
+        for i in range(self.step_per_train):
+            self.sess.run(self.train_op, feed_dict={self.state:states, self.actions:actions, self.Q_estimate:Qs, self.old_prob:old_prob, self.legal_actions:legal_actions})
+            
 class Critic():
     def __init__(self, obssize, sess, optimizer, global_step):
         # YOUR CODE HERE

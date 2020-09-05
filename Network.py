@@ -4,6 +4,12 @@ import heapq
 import numpy as np
 from scipy import optimize
 
+"""
+La capacité aporter à un liens (Link) lorsqu'un operateur construit une connection, plusieur operateur peuvent construire leur propre connection sur un même liens,
+ainsi si deux operateurs construisent une connection sur un liens la capacité de ce dernier sera de 20.
+"""
+CAPA =10 
+
 
 class Zone:
     def __init__(self, zoneId):
@@ -36,7 +42,7 @@ class Link:
     '''
     This class has attributes associated with any link
     '''
-    def __init__(self, tailNodeID, headNodeID, capacity=100, length=10, fft=5, beta=1, alpha=1, speedLimit=50):
+    def __init__(self, tailNodeID, headNodeID, capacity=CAPA, length=10, fft=5, beta=1, alpha=1, speedLimit=50):
         self.tailNode = tailNodeID
         self.headNode = headNodeID
         self.capacity = float(capacity) # veh per hour
@@ -62,19 +68,25 @@ class Demand:
         self.demand = float(demand)
         
 class Network:
-    def __init__(self, Nodes, Links, Demands):
-        self.Nodes       = Nodes # dictionary of Nodes where the index is the Id of the Node
-        self.Trips       = Demands  # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the fromZone.
-        self.Links       = Links # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the tail.
-        self.Connections = np.zeros((len(self.Nodes),len(self.Nodes)))
-        self.Zones       = {}
-        self.originZones = set([k[0] for k in self.Trips])
+    def __init__(self, Nodes, Links, Demands, nOperator):
+        self.Nodes        = Nodes # dictionary of Nodes where the index is the Id of the Node
+        self.Trips        = Demands  # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the fromZone.
+        self.Links        = Links # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the tail.
+        
+        ID                = np.identity(len(self.Nodes), dtype = "int")
+        ID                = ID[np.newaxis, ...]
+        self.Connections  = np.concatenate((ID, ID)) #LA
+        self.nOperator    = nOperator
+        self.Zones        = {}
+        self.originZones  = set([k[0] for k in self.Trips])
         
         self.connectNodes()
         self.collectTravelZones()
         
+        
     def connectNodes(self):
         for NodePair in self.Links.keys():
+            
             self.Connections[NodePair] = 1
             if NodePair[1] not in self.Nodes[NodePair[0]].outLinks:
                 self.Nodes[NodePair[0]].outLinks.append(NodePair[1])
@@ -84,6 +96,7 @@ class Network:
     def collectTravelZones(self):
     
         for ZonePair in self.Trips.keys():
+            
             if ZonePair[0] not in self.Zones:
                 self.Zones[ZonePair[0]] = Zone([ZonePair[0]])
             if ZonePair[1] not in self.Zones:
@@ -93,10 +106,58 @@ class Network:
     
     def addLink(self, link):
         assert not((link.tailNode,link.headNode) in self.Links.keys()), "tentative d'ajout d'un arc déjà existant"
-        self.Connections[link.tailNode,link.headNode] = 1 
         self.Nodes[link.tailNode].outLinks.append(link.headNode)
         self.Nodes[link.headNode].inLinks.append(link.tailNode)
         self.Links.update({(link.tailNode,link.headNode):link})
+        
+    def rewardOp(self, Operator):
+        reward = 0
+        #print("##########"+"Rewardcalculation for operator {}".format(Operator)+"##########")
+        for (tailNode, headNode) in zip(list(np.nonzero(self.Connections[Operator])[0]), list(np.nonzero(self.Connections[Operator])[1])): 
+            
+            if tailNode != headNode :
+                
+                nOpertorOnLink = np.count_nonzero(self.Connections[:,tailNode,headNode])
+                reward += self.Links[(tailNode, headNode)].flow/nOpertorOnLink
+                """
+                print ("tail : {}".format(tailNode))
+                print ("head : {}".format(headNode))
+                print ("flow : {}".format(self.Links[(tailNode, headNode)].flow))
+                print ("apport : {}".format(self.Links[(tailNode, headNode)].flow/nOpertorOnLink))
+                print("-----------------------------------")
+                """
+        return reward
+    
+    def rewardAll(self ):
+        self.assignment("deterministic", "FW")
+        return np.array([self.rewardOp(operator) for operator in range(self.nOperator)])
+    
+    def addConnection(self, Operator, tailNode, headNode):
+        #print("{} is creating a connection form {} to {}".format(Operator, tailNode, headNode))
+        assert self.Connections[Operator, tailNode, headNode] == 0, "Un operateur essaye de construire une connection déjà existante"
+        self.Connections[Operator, tailNode, headNode] = 1
+        if (tailNode, headNode) in self.Links.keys() :
+            self.Links[tailNode, headNode].capacity += CAPA
+        else :
+            self.addLink(Link(tailNode, headNode))
+            
+    def reset(self):
+        ID                = np.identity(len(self.Nodes), dtype = "int")
+        ID                = ID[np.newaxis, ...]
+        self.Connections  = np.concatenate((ID, ID)) #LA
+        self.Links        = {}
+        
+        for node in self.Nodes.values() :
+            
+            node.outLinks = []
+            node.inLinks = []
+            
+            
+    
+    
+    
+            
+            
         
         
         
@@ -323,7 +384,7 @@ class Network:
     
     
     
-    def assignment(self,loading, algorithm, accuracy = 0.01, maxIter=100):
+    def assignment(self,loading, algorithm, accuracy = 0.01, maxIter=1000):
         '''
         * Performs traffic assignment
         * Type is either deterministic or stochastic
@@ -372,8 +433,8 @@ class Network:
     
             it = it + 1
             if it > maxIter:
-                print("The assignment did not converge with the desired gap and max iterations are reached")
-                print("current gap ", gap)
+                #print("The assignment did not converge with the desired gap and max iterations are reached")
+                #print("current gap ", gap)
                 break
-        print("Assignment took", time.time() - startP, " seconds")
-        print("assignment converged in ", it, " iterations")
+        #print("Assignment took", time.time() - startP, " seconds")
+        #print("assignment converged in ", it, " iterations")
