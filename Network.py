@@ -74,8 +74,7 @@ class Network:
         self.Links        = Links # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the tail.
         
         ID                = np.identity(len(self.Nodes), dtype = "int")
-        ID                = ID[np.newaxis, ...]
-        self.Connections  = np.concatenate((ID, ID)) #LA
+        self.Connections  = np.tile(ID,(nOperator,1,1))
         self.nOperator    = nOperator
         self.Zones        = {}
         self.originZones  = set([k[0] for k in self.Trips])
@@ -103,6 +102,7 @@ class Network:
                 self.Zones[ZonePair[1]] = Zone([ZonePair[1]])
             if ZonePair[1] not in self.Zones[ZonePair[0]].destList:
                 self.Zones[ZonePair[0]].destList.append(ZonePair[1])
+    
     
     def addLink(self, link):
         assert not((link.tailNode,link.headNode) in self.Links.keys()), "tentative d'ajout d'un arc déjà existant"
@@ -143,8 +143,7 @@ class Network:
             
     def reset(self):
         ID                = np.identity(len(self.Nodes), dtype = "int")
-        ID                = ID[np.newaxis, ...]
-        self.Connections  = np.concatenate((ID, ID)) #LA
+        self.Connections  = np.tile(ID,(self.nOperator,1,1))
         self.Links        = {}
         
         for node in self.Nodes.values() :

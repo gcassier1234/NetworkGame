@@ -24,36 +24,40 @@ def eval_func(actors, actsize, nOperators, network):
     
     for ite in range(eval_episodes):
         
-        network.reset()
+
         rsum = [0 for operator in range(nOperators)]
         
         for game in range (nGames) :
             
             network.reset()
-            states           = network.Connections.flatten()
-            rewards          = network.rewardAll()
-            actions = []
             
-            for idOperator, agent in enumerate(actors) :
-                reverse_legal_actions   = network.Connections[idOperator].flatten()
-                legal_actions            = np.where(((reverse_legal_actions==0)|(reverse_legal_actions==1)), reverse_legal_actions^1, reverse_legal_actions)
-                boolean_legal_actions   =  np.append(legal_actions,1)
-                prob   = agent.compute_prob(np.expand_dims(state,0), np.expand_dims(boolean_legal_actions, 0)).flatten()
-                action = np.random.choice(np.arange(actsize), p=prob)
-                actions.append(action)
-                b_legal_actions.append(boolean_legal_actions)
+            for move in range(nMoves):
                 
-            # record
-            for operator in range(nOperators):
+                state            = network.Connections.flatten()  
+                actions          = [] 
                 
-                rsum[operator] += rewards[operator]
-            
-            for operator in range(nOperators) :
-
-                if actions[idOperator] != nNodes**2 : 
+                for idOperator, agent in enumerate(actors) :
                     
-                    tailNode, headNode = np.unravel_index(actions[idOperator], (nNodes,nNodes))
-                    network.addConnection(idOperator, tailNode, headNode)
+                    reverse_legal_actions    = network.Connections[idOperator].flatten()
+                    legal_actions            = np.where(((reverse_legal_actions==0)|(reverse_legal_actions==1)), reverse_legal_actions^1, reverse_legal_actions)
+                    boolean_legal_actions    = np.append(legal_actions,1)
+                    prob                     = agent.compute_prob(np.expand_dims(state,0), np.expand_dims(boolean_legal_actions, 0)).flatten()
+                    action                   = np.random.choice(np.arange(actsize), p=prob)
+                    actions.append(action)
+
+                rewards          = network.rewardAll()
+                
+                # record
+                for idOperator in range(nOperators):
+                    
+                    rsum[idOperator] += rewards[idOperator]
+                
+                for idOperator in range(nOperators) :
+                    
+                    if actions[idOperator] != nNodes**2 : 
+                        
+                        tailNode, headNode = np.unravel_index(actions[idOperator], (nNodes,nNodes))
+                        network.addConnection(idOperator, tailNode, headNode)
 
         avgRewards.append([rsum[operator ] for operator in range(nOperators)])
 
@@ -70,7 +74,7 @@ def eval_func(actors, actsize, nOperators, network):
 #starter_learning_rate      = 3e-4
 lr_alpha                   = 3e-4 # tf.train.exponential_decay(starter_learning_rate, global_step_alpha, 100, 0.95, staircase=True)
 lr_beta                    = 3e-5 # tf.train.exponential_decay(starter_learning_rate, global_step_beta, 100, 0.95, staircase=True)
-nGames                     = 10    # Number of games for each iteration 
+nGames                     = 4    # Number of games for each iteration 
 nMoves                     = 5    # Number of moves played by each player
 iterations                 = 100   # total num of iterations
 gamma                      = 0.99 # discount
@@ -80,7 +84,7 @@ step_per_train             = 3
 
 # Environment parameters
 nOperators         = 2
-nNodes             = 5
+nNodes             = 4
 
 
 # Initialize environment
@@ -124,7 +128,9 @@ if latest_checkpoint:
 """
 ############################################################################# Iteration of the algorithm #############################################################################
 """
-for ite in range(0,iterations):   
+for ite in range(0,iterations):  
+    
+    print(ite)
     
     OBS        = []                                         # observations, they are the same for every operators, thus there is no need for a list of obs for each operator
     ACTS       = {agent:[] for agent in range(nOperators)}  # actions
@@ -159,9 +165,9 @@ for ite in range(0,iterations):
                 Because we don't want an operator to create a connection between two same nodes
                 ,for each operator the diaglonal elements of the connection matrix are preseted to 1, 
                 """
-                reverse_legal_actions   = network.Connections[idOperator].flatten()
+                reverse_legal_actions    = network.Connections[idOperator].flatten()
                 legal_actions            = np.where(((reverse_legal_actions==0)|(reverse_legal_actions==1)), reverse_legal_actions^1, reverse_legal_actions)
-                boolean_legal_actions   = np.append(legal_actions,1)
+                boolean_legal_actions    = np.append(legal_actions,1)
 
                 # Probability over all actions (but illegal ones will have probability of zero)
                 prob   = agent.compute_prob(np.expand_dims(state,0), np.expand_dims(boolean_legal_actions, 0)).flatten()
@@ -255,7 +261,7 @@ for ite in range(0,iterations):
         print("MODEL SAVED AT ITERATION {}".format(ite))
     
     
-    """
-    if ite%20 == 0:
+    #and (ite != 0)
+    if (ite%5 == 0) :
         eval_func(actors, actsize, nOperators, network)
-    """
+    
