@@ -68,16 +68,20 @@ class Demand:
         self.demand = float(demand)
         
 class Network:
-    def __init__(self, Nodes, Links, Demands, nOperator):
-        self.Nodes        = Nodes # dictionary of Nodes where the index is the Id of the Node
-        self.Trips        = Demands  # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the fromZone.
-        self.Links        = Links # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the tail.
+    def __init__(self, Nodes, Links, Demands, nOperator, LegalConnections):
+        self.Nodes               = Nodes # dictionary of Nodes where the index is the Id of the Node
+        self.Trips               = Demands  # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the fromZone.
+        self.Links               = Links # dictionary where the index of a link is define by the Id of the pair of nodes it connex, first comes the tail.
         
-        ID                = np.identity(len(self.Nodes), dtype = "int")
-        self.Connections  = np.tile(ID,(nOperator,1,1))
-        self.nOperator    = nOperator
-        self.Zones        = {}
-        self.originZones  = set([k[0] for k in self.Trips])
+        ID                       = np.identity(len(self.Nodes), dtype = "int")
+        assert np. all((np.diag(LegalConnections) == 0)), "One or several connection between one node and itself have been authorized, this is not possible"
+        # Default_Connection is a deceptive name, what it actually implements is the set of connections forbiden, dispite this confusion it is practical to
+        # consider these as preseted conncetions with no links matching them, this will prevent the operators from building the forbiden connections. 
+        self.Default_Connections = np.where(((LegalConnections==0)|(LegalConnections==1)), LegalConnections^1, LegalConnections)
+        self.Connections         = np.tile(self.Default_Connections,(nOperator,1,1))
+        self.nOperator           = nOperator
+        self.Zones               = {}
+        self.originZones         = set([k[0] for k in self.Trips])
         
         self.connectNodes()
         self.collectTravelZones()
@@ -105,16 +109,20 @@ class Network:
     
     
     def addLink(self, link):
+        
         assert not((link.tailNode,link.headNode) in self.Links.keys()), "tentative d'ajout d'un arc déjà existant"
         self.Nodes[link.tailNode].outLinks.append(link.headNode)
         self.Nodes[link.headNode].inLinks.append(link.tailNode)
         self.Links.update({(link.tailNode,link.headNode):link})
         
     def rewardOp(self, Operator):
+        
         reward = 0
-        #print("##########"+"Rewardcalculation for operator {}".format(Operator)+"##########")
-        for (tailNode, headNode) in zip(list(np.nonzero(self.Connections[Operator])[0]), list(np.nonzero(self.Connections[Operator])[1])): 
-            
+        operatorConnection = self.Connections[Operator] - self.Default_Connections
+        #print("##########"+"Rewardcalculation for operator {}".format(Operator)+"##########"
+        
+        for (tailNode, headNode) in zip(list(np.nonzero(operatorConnection)[0]), list(np.nonzero(operatorConnection)[1])): 
+
             if tailNode != headNode :
                 
                 nOpertorOnLink = np.count_nonzero(self.Connections[:,tailNode,headNode])
@@ -129,10 +137,12 @@ class Network:
         return reward
     
     def rewardAll(self ):
+        
         self.assignment("deterministic", "FW")
         return np.array([self.rewardOp(operator) for operator in range(self.nOperator)])
     
     def addConnection(self, Operator, tailNode, headNode):
+        
         #print("{} is creating a connection form {} to {}".format(Operator, tailNode, headNode))
         assert self.Connections[Operator, tailNode, headNode] == 0, "Un operateur essaye de construire une connection déjà existante"
         self.Connections[Operator, tailNode, headNode] = 1
@@ -142,14 +152,24 @@ class Network:
             self.addLink(Link(tailNode, headNode))
             
     def reset(self):
-        ID                = np.identity(len(self.Nodes), dtype = "int")
-        self.Connections  = np.tile(ID,(self.nOperator,1,1))
+        
+        self.Connections  = np.tile(self.Default_Connections,(self.nOperator,1,1))
         self.Links        = {}
         
         for node in self.Nodes.values() :
             
             node.outLinks = []
             node.inLinks = []
+            
+    def displayStrategy(self):
+        
+        for idOperator in range(self.nOperator):
+            
+            operatorConnection = self.Connections[idOperator] - self.Default_Connections
+            print("Decision matrix for operator {} \n".format(idOperator))
+            print(operatorConnection)
+            print("\n")
+            
             
             
     

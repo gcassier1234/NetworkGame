@@ -18,51 +18,51 @@ import random
 eval_func allows evaluation of the actors at a given point of the training
 """
 def eval_func(actors, actsize, nOperators, network):
-    eval_episodes = 15
+    eval_episodes = 10
     
     avgRewards = [] #avg reward for each elevator in each trajectory
     
     for ite in range(eval_episodes):
         
-
         rsum = [0 for operator in range(nOperators)]
-        
-        for game in range (nGames) :
+        network.reset()
             
-            network.reset()
+        for move in range(nMoves):
             
-            for move in range(nMoves):
+            state            = network.Connections.flatten()  
+            actions          = [] 
+            
+            for idOperator, agent in enumerate(actors) :
                 
-                state            = network.Connections.flatten()  
-                actions          = [] 
-                
-                for idOperator, agent in enumerate(actors) :
-                    
-                    reverse_legal_actions    = network.Connections[idOperator].flatten()
-                    legal_actions            = np.where(((reverse_legal_actions==0)|(reverse_legal_actions==1)), reverse_legal_actions^1, reverse_legal_actions)
-                    boolean_legal_actions    = np.append(legal_actions,1)
-                    prob                     = agent.compute_prob(np.expand_dims(state,0), np.expand_dims(boolean_legal_actions, 0)).flatten()
-                    action                   = np.random.choice(np.arange(actsize), p=prob)
-                    actions.append(action)
+                reverse_legal_actions    = network.Connections[idOperator].flatten()
+                legal_actions            = np.where(((reverse_legal_actions==0)|(reverse_legal_actions==1)), reverse_legal_actions^1, reverse_legal_actions)
+                boolean_legal_actions    = np.append(legal_actions,1)
+                prob                     = agent.compute_prob(np.expand_dims(state,0), np.expand_dims(boolean_legal_actions, 0)).flatten()
+                action                   = np.random.choice(np.arange(actsize), p=prob)
+                actions.append(action)
 
-                rewards          = network.rewardAll()
+            rewards          = network.rewardAll()
+            
+            # record
+            for idOperator in range(nOperators):
                 
-                # record
-                for idOperator in range(nOperators):
-                    
-                    rsum[idOperator] += rewards[idOperator]
+                rsum[idOperator] += rewards[idOperator]
+            
+            for idOperator in range(nOperators) :
                 
-                for idOperator in range(nOperators) :
+                if actions[idOperator] != nNodes**2 : 
                     
-                    if actions[idOperator] != nNodes**2 : 
-                        
-                        tailNode, headNode = np.unravel_index(actions[idOperator], (nNodes,nNodes))
-                        network.addConnection(idOperator, tailNode, headNode)
-
-        avgRewards.append([rsum[operator ] for operator in range(nOperators)])
+                    tailNode, headNode = np.unravel_index(actions[idOperator], (nNodes,nNodes))
+                    network.addConnection(idOperator, tailNode, headNode)
+                    
+        if ite == eval_episodes - 1 :
+            
+            network.displayStrategy()
+             
+        avgRewards.append(rsum)
 
     avgRewards = np.array(avgRewards)
-    print("{:40s}: {}, Average:{}".format("Average reward of elevators in each episode", np.round(np.mean(avgRewards, axis=1)), np.mean(avgRewards)))
+    print("{:40s}: {}, Average:{}".format("Average reward of elevators in each episode", np.round(np.mean(avgRewards, axis=0)), np.mean(avgRewards)))
     
 
 
@@ -74,24 +74,43 @@ def eval_func(actors, actsize, nOperators, network):
 #starter_learning_rate      = 3e-4
 lr_alpha                   = 3e-4 # tf.train.exponential_decay(starter_learning_rate, global_step_alpha, 100, 0.95, staircase=True)
 lr_beta                    = 3e-5 # tf.train.exponential_decay(starter_learning_rate, global_step_beta, 100, 0.95, staircase=True)
-nGames                     = 4    # Number of games for each iteration 
-nMoves                     = 5    # Number of moves played by each player
-iterations                 = 100   # total num of iterations
+nGames                     = 30    # Number of games for each iteration 
+nMoves                     = 7    # Number of moves played by each player
+iterations                 = 1000  # total num of iterations
 gamma                      = 0.99 # discount
 lmbda                      = 0.5  # GAE estimation factor
 clip_eps                   = 0.2
 step_per_train             = 3
 
 # Environment parameters
-nOperators         = 2
-nNodes             = 4
+nOperators            = 2
+nNodes                = 10
+
+legalConnections      = np.zeros((nNodes, nNodes), dtype = "int")
+
+legalConnections[0,1] = 1
+legalConnections[1,2] = 1
+legalConnections[2,3] = 1
+legalConnections[3,4] = 1
+
+legalConnections[0,7] = 1
+legalConnections[7,6] = 1
+legalConnections[6,5] = 1
+legalConnections[5,4] = 1
+
+legalConnections[0,9] = 1
+legalConnections[9,4] = 1
+
+legalConnections[0,8] = 1
+legalConnections[8,4] = 1
+ 
 
 
 # Initialize environment
 links              = {}
 nodes              = {i:Node(i) for i in range(nNodes)}
-demands            = {(0,1):Demand(0,1,5), (0,2):Demand(0,2,5)} #The index of a demande must be equal to the couple (departure, destination)
-network            = Network(nodes, links, demands, nOperators)
+demands            = {(0,4):Demand(0,4,40)} #The index of a demande must be equal to the couple (departure, destination)
+network            = Network(nodes, links, demands, nOperators, legalConnections)
 obssize            = nOperators*nNodes**2 #The obsarvation space is made out of the flattened connection matrixe of the operators
 actsize            = nNodes**2 + 1 #The last possible action corresponds to inactivity, no connection is built by the operator during this round
 
@@ -116,9 +135,10 @@ if not os.path.exists(CHECKPOINT_DIR):
     os.makedirs(CHECKPOINT_DIR)
 saver = tf.train.Saver()
 sess.run(tf.global_variables_initializer())
-
+ 
 # Load a previous checkpoint if it exists
 latest_checkpoint = tf.train.latest_checkpoint(CHECKPOINT_DIR)
+
 """
 if latest_checkpoint:
     print("Loading model checkpoint: {}".format(latest_checkpoint))
@@ -130,7 +150,7 @@ if latest_checkpoint:
 """
 for ite in range(0,iterations):  
     
-    print(ite)
+    print("iteration number {}".format(ite))
     
     OBS        = []                                         # observations, they are the same for every operators, thus there is no need for a list of obs for each operator
     ACTS       = {agent:[] for agent in range(nOperators)}  # actions
@@ -246,6 +266,7 @@ for ite in range(0,iterations):
         TARGETS[agent]  = np.array(TARGETS[agent])
         ACTS[agent]     = np.array(ACTS[agent])
         ADS[agent]      = np.array(ADS[agent])
+
         critics[agent].train(OBS, np.reshape(TARGETS[agent], [-1,1]))
     
         # update policy
@@ -262,6 +283,6 @@ for ite in range(0,iterations):
     
     
     #and (ite != 0)
-    if (ite%5 == 0) :
+    if (ite%5 == 0):
         eval_func(actors, actsize, nOperators, network)
     
