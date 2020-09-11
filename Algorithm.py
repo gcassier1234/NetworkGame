@@ -150,8 +150,6 @@ if latest_checkpoint:
 """
 for ite in range(0,iterations):  
     
-    print("iteration number {}".format(ite))
-    
     OBS        = []                                         # observations, they are the same for every operators, thus there is no need for a list of obs for each operator
     ACTS       = {agent:[] for agent in range(nOperators)}  # actions
     ADS        = {agent:[] for agent in range(nOperators)}  # advantages for actors
@@ -284,5 +282,7 @@ for ite in range(0,iterations):
     
     #and (ite != 0)
     if (ite%5 == 0):
+        
+        print("iteration number {}".format(ite))
         eval_func(actors, actsize, nOperators, network)
     

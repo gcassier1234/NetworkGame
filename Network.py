@@ -1,7 +1,11 @@
 import math
 import time
 import heapq
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
+import networkx as nx
+import nxviz as nv
 from scipy import optimize
 
 """
@@ -9,6 +13,38 @@ La capacité aporter à un liens (Link) lorsqu'un operateur construit une connec
 ainsi si deux operateurs construisent une connection sur un liens la capacité de ce dernier sera de 20.
 """
 CAPA =10 
+
+def buildGraph(ConnectionMatrix):
+    
+    G = nx.DiGraph()
+    G.add_nodes_from(range(ConnectionMatrix.shape[0]))
+    G.add_edges_from(zip(list(np.nonzero(ConnectionMatrix)[0]), list(np.nonzero(ConnectionMatrix)[1])))
+    
+    for i in range (5):
+        G.nodes[i]['latitude'] = (-5)*i
+        
+    for i in range (5,8):
+        G.nodes[i]['latitude'] = 5*(i-4)-20
+    
+    G.nodes[8]['latitude'] = -10
+    G.nodes[9]['latitude'] = -10
+    
+    G.nodes[0]['longitude'] = 0
+    G.nodes[4]['longitude'] = 0
+    G.nodes[8]['longitude'] = 5
+    G.nodes[9]['longitude'] = -5
+    
+    for i in range(1,4):
+        G.nodes[i]['longitude'] = 10
+    
+    for i in range(5,8):
+        G.nodes[i]['longitude'] = -10
+    
+    for i in range(10):
+        G.nodes[i]['size']=10
+    return G
+    
+    
 
 
 class Zone:
@@ -166,8 +202,16 @@ class Network:
         for idOperator in range(self.nOperator):
             
             operatorConnection = self.Connections[idOperator] - self.Default_Connections
-            print("Decision matrix for operator {} \n".format(idOperator))
-            print(operatorConnection)
+            graph              = buildGraph(operatorConnection)
+            pos                = {i:(graph.nodes[i]['longitude'],graph.nodes[i]['latitude']) for i in range(10)}
+            color              = ["blue" for i in range(10)]
+            color[0]           = 'red'
+            color[4]           = 'green'
+            print("Decision graph for operator {} \n".format(idOperator))
+
+            
+            nx.draw(graph, pos, node_color = color)
+            plt.show()
             print("\n")
             
             
